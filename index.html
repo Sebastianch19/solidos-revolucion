@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torno Virtual de Revolución</title>
+<meta name="description" content="Simulador de sólidos de revolución por discos y arandelas alrededor del eje x, el eje y y rectas paralelas a ellos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+/* Paleta: azul para el sólido y la curva 1, coral para la curva 2, ámbar para discos y arandelas */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --ink:#15212c; --muted:#5a6977; --line:#d7dee5; --grid:#e8edf2; --axis:#8c99a6;
+  --accent:#1d5bd8; --accent-ink:#ffffff; --accent-soft:#dfe8fb;
+  --curve2:#c4502a; --disk:#e39a1c; --stack:#f3c777; --disk-ink:#7a4f00;
+  --ok:#1f7a55; --ok-soft:#ddf1e7; --err:#b42318; --err-soft:#fde8e6;
+  --solid:#5b8be0; --cap:#a9c3f1;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1217; --panel:#141b23; --ink:#e5ecf2; --muted:#9aa8b5; --line:#28333f; --grid:#1b242e; --axis:#64727f;
+  --accent:#7ba6f6; --accent-ink:#0d1217; --accent-soft:#1c2c48;
+  --curve2:#ef8c66; --disk:#f2b54a; --stack:#b88a2e; --disk-ink:#f6cf86;
+  --ok:#6fd1a4; --ok-soft:#11301f; --err:#ff8a7a; --err-soft:#3a1712;
+  --solid:#4c7cd0; --cap:#2f4f86; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1217; --panel:#141b23; --ink:#e5ecf2; --muted:#9aa8b5; --line:#28333f; --grid:#1b242e; --axis:#64727f;
+  --accent:#7ba6f6; --accent-ink:#0d1217; --accent-soft:#1c2c48;
+  --curve2:#ef8c66; --disk:#f2b54a; --stack:#b88a2e; --disk-ink:#f6cf86;
+  --ok:#6fd1a4; --ok-soft:#11301f; --err:#ff8a7a; --err-soft:#3a1712;
+  --solid:#4c7cd0; --cap:#2f4f86; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+button,input,select{font:inherit;color:inherit}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;background:var(--panel);border-bottom:1px solid var(--line);padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand h1{font:700 1.4rem/1.1 var(--f-display);margin:0;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:.85rem}
+.top-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.top-actions label{font-size:.8rem;color:var(--muted)}
+select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;min-width:0;max-width:100%}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:.85rem;white-space:nowrap}
+.btn:hover{border-color:var(--axis)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+.layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:16px;max-width:1520px;margin:0 auto;padding-block:16px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:18px;align-self:start;min-width:0}
+.group{display:flex;flex-direction:column;gap:10px}
+.group h2{font:500 .72rem/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.story{font-size:.84rem;color:var(--muted);margin:0}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;border-right:1px solid var(--line);background:transparent;font:500 .8rem var(--f-mono);padding:7px 2px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field>label{font-size:.82rem;color:var(--muted)}
+.expr{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.expr:focus-within{border-color:var(--accent)}
+.expr span{font:.85rem var(--f-mono);padding:0 2px 0 9px;color:var(--muted);white-space:nowrap}
+.expr input{flex:1;min-width:0;border:0;background:transparent;font:.86rem var(--f-mono);padding:8px 8px 8px 6px;outline:none}
+.hint{font-size:.75rem;color:var(--muted);margin:0}
+.ferr{font-size:.78rem;color:var(--err);margin:0}
+.slider{display:flex;flex-direction:column;gap:2px}
+.slider label{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;color:var(--muted)}
+.slider output{font-family:var(--f-mono);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row .slider{flex:1}
+.errbox{background:var(--err-soft);color:var(--err);border-radius:6px;padding:8px 10px;font-size:.84rem;margin:0}
+.stage{display:flex;flex-direction:column;gap:16px;min-width:0}
+.views{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:1240px){.views{grid-template-columns:minmax(0,1fr)}}
+.view{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.view figcaption{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);font-size:.84rem;font-weight:500}
+.view figcaption span{color:var(--muted);font-weight:400;font-size:.78rem}
+.box{position:relative;height:clamp(300px,48vh,540px)}
+#c2d{display:block;width:100%;height:100%}
+#c3d{position:absolute;inset:0}
+#c3d canvas{display:block;width:100%;height:100%;touch-action:none}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;text-align:center;color:var(--muted);background:var(--panel);font-size:.9rem}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.card .l{font-size:.76rem;color:var(--muted)}
+.card .v{font:500 1.3rem/1.25 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.card .s{font-size:.76rem;color:var(--muted)}
+.card.main{border:2px solid var(--accent)}
+.card.case{background:var(--ok-soft);border-color:transparent}
+.card.case .l,.card.case .s,.card.case .v{color:var(--ok)}
+.card.quiet .v{font-size:1rem;font-family:var(--f-body);font-weight:400;color:var(--muted)}
+.formula{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tex{overflow-x:auto;overflow-y:hidden;font-size:1.08rem;padding:2px 0}
+.formula p{margin:0;font-size:.86rem;color:var(--muted);max-width:90ch}
+footer{text-align:center;color:var(--muted);font-size:.78rem;padding-block:0 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Torno Virtual</h1>
+    <p>Sólidos de revolución por discos y arandelas · eje x, eje y y rectas paralelas</p>
+  </div>
+  <div class="top-actions">
+    <label for="preset">Caso</label>
+    <select id="preset"></select>
+    <button class="btn" id="themeBtn" type="button" aria-label="Cambiar tema">Tema: auto</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel" aria-label="Controles">
+    <p class="story" id="story"></p>
+
+    <section class="group">
+      <h2>Región</h2>
+      <div class="field">
+        <label>Las curvas se escriben como</label>
+        <div class="seg" role="group" aria-label="Forma de las curvas">
+          <button type="button" data-form="x" aria-pressed="true">y = f(x)</button>
+          <button type="button" data-form="y" aria-pressed="false">x = f(y)</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f1">Curva 1</label>
+        <div class="expr"><span id="pre1">y =</span><input id="f1" type="text" spellcheck="false" autocomplete="off"></div>
+      </div>
+      <div class="field">
+        <label for="f2">Curva 2 <span class="hint">(vacía = 0)</span></label>
+        <div class="expr"><span id="pre2">y =</span><input id="f2" type="text" spellcheck="false" autocomplete="off" placeholder="0"></div>
+      </div>
+      <p class="ferr" id="exprErr" hidden></p>
+      <p class="hint">Puedes usar sqrt, sin, cos, exp, log, ^, pi y los parámetros del caso (a, b, k y los de abajo).</p>
+      <div class="slider"><label for="a"><span id="aLbl">Límite a</span><output id="aOut"></output></label><input id="a" type="range"></div>
+      <div class="slider"><label for="b"><span id="bLbl">Límite b</span><output id="bOut"></output></label><input id="b" type="range"></div>
+      <div id="caseParams" class="group"></div>
+    </section>
+
+    <section class="group">
+      <h2>Eje de giro</h2>
+      <div class="seg" role="group" aria-label="Eje de giro">
+        <button type="button" data-axis="x" aria-pressed="true">eje x</button>
+        <button type="button" data-axis="y" aria-pressed="false">eje y</button>
+        <button type="button" data-axis="yk" aria-pressed="false">y = k</button>
+        <button type="button" data-axis="xk" aria-pressed="false">x = k</button>
+      </div>
+      <div class="slider" id="kWrap" hidden><label for="k"><span id="kLbl">Recta k</span><output id="kOut"></output></label><input id="k" type="range"></div>
+    </section>
+
+    <section class="group">
+      <h2>Giro y discos</h2>
+      <div class="row">
+        <div class="slider"><label for="theta"><span>Ángulo de giro θ</span><output id="thetaOut"></output></label><input id="theta" type="range" min="0" max="360" step="1"></div>
+        <button class="btn primary" id="spinBtn" type="button">Girar</button>
+      </div>
+      <div class="slider"><label for="pos"><span id="posLbl">Disco en x =</span><output id="posOut"></output></label><input id="pos" type="range" min="0" max="1000" step="1"></div>
+      <div class="slider"><label for="n"><span>n discos (suma de Riemann)</span><output id="nOut"></output></label><input id="n" type="range" min="0" max="100" step="1"></div>
+    </section>
+
+    <p class="errbox" id="err" role="alert" hidden></p>
+  </aside>
+
+  <section class="stage" aria-label="Resultados">
+    <div class="views">
+      <figure class="view">
+        <figcaption>Región en el plano <span>la sombra punteada es su reflejo al otro lado del eje</span></figcaption>
+        <div class="box"><canvas id="c2d" aria-label="Gráfica 2D de la región y el eje de giro" role="img"></canvas><div class="overlay" id="ov2" hidden></div></div>
+      </figure>
+      <figure class="view">
+        <figcaption>Sólido de revolución <span>arrastra para rotar · rueda o pellizco para acercar <button class="btn" id="fitBtn" type="button">Recentrar</button></span></figcaption>
+        <div class="box"><div id="c3d"></div><div class="overlay" id="ov3" hidden></div></div>
+      </figure>
+    </div>
+    <div class="results" id="results" aria-live="polite"></div>
+    <div class="formula">
+      <div class="tex" id="tex1"></div>
+      <div class="tex" id="tex2"></div>
+      <p id="rdesc"></p>
+    </div>
+  </section>
+</main>
+<footer>Proyecto de Cálculo Integral · Métodos de discos y arandelas · Three.js, math.js y KaTeX</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.2/lib/browser/math.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+
+<!-- Motor numérico: no usa el DOM, así se puede probar aparte -->
+<script id="engine">
+(function (root) {
+  'use strict';
+
+  function evalAt(code, scope) {
+    try {
+      const v = code.evaluate(scope);
+      return typeof v === 'number' && isFinite(v) ? v : NaN;
+    } catch (e) {
+      return NaN;
+    }
+  }
+
+  // Muestrea las dos curvas y arma el contorno cerrado de la región en coordenadas (x, y).
+  // form 'x': y = f(x) con a ≤ x ≤ b.  form 'y': x = f(y) con a ≤ y ≤ b.
+  function buildRegion(o) {
+    const N = o.samples || 1000;
+    const v = o.form === 'y' ? 'y' : 'x';
+    const sc = Object.assign({}, o.scope);
+    const c1 = [], c2 = [];
+    for (let i = 0; i <= N; i++) {
+      const t = o.a + (o.b - o.a) * i / N;
+      sc[v] = t;
+      const u1 = evalAt(o.c1, sc);
+      const u2 = o.c2 ? evalAt(o.c2, sc) : 0;
+      if (!isFinite(u1) || !isFinite(u2)) {
+        return { error: 'La curva ' + (isFinite(u1) ? '2' : '1') + ' no está definida en ' + v + ' = ' + (+t.toFixed(4)) + '. Ajusta los límites o la expresión.' };
+      }
+      if (v === 'x') { c1.push([t, u1]); c2.push([t, u2]); } else { c1.push([u1, t]); c2.push([u2, t]); }
+    }
+    return { c1, c2, poly: c1.concat(c2.slice().reverse()) };
+  }
+
+  // Corta la región con la recta perpendicular al eje en t (x = t si el eje es horizontal, y = t si es vertical).
+  // Devuelve los tramos [inicio, fin] de la otra coordenada que quedan dentro de la región (regla par-impar).
+  function sliceIntervals(poly, dir, t) {
+    const s = dir === 'h' ? 0 : 1, o = 1 - s, cuts = [];
+    for (let i = 0, n = poly.length; i < n; i++) {
+      const p = poly[i], q = poly[(i + 1) % n];
+      if ((p[s] <= t) !== (q[s] <= t)) cuts.push(p[o] + (t - p[s]) * (q[o] - p[o]) / (q[s] - p[s]));
+    }
+    cuts.sort((m, n) => m - n);
+    const out = [];
+    for (let i = 0; i + 1 < cuts.length; i += 2) if (cuts[i + 1] > cuts[i]) out.push([cuts[i], cuts[i + 1]]);
+    return out;
+  }
+
+  // Convierte los tramos en distancias al eje [r, R] y une los que se solapan.
+  // Un tramo que cruza el eje da un disco [0, R]; uno que no lo cruza da una arandela [r, R].
+  function toDistances(ints, k) {
+    const d = ints.map(([lo, hi]) => lo >= k ? [lo - k, hi - k] : hi <= k ? [k - hi, k - lo] : [0, Math.max(k - lo, hi - k)]);
+    d.sort((p, q) => p[0] - q[0]);
+    const out = [];
+    for (const it of d) {
+      const last = out[out.length - 1];
+      if (last && it[0] <= last[1]) last[1] = Math.max(last[1], it[1]);
+      else out.push(it.slice());
+    }
+    return out;
+  }
+
+  function ringArea(comps) {
+    let A = 0;
+    for (const [r, R] of comps) A += Math.PI * (R * R - r * r);
+    return A;
+  }
+
+  function slice(poly, axis, t) {
+    const ints = sliceIntervals(poly, axis.dir, t);
+    const comps = toDistances(ints, axis.k);
+    return { t, ints, comps, area: ringArea(comps) };
+  }
+
+  // Rango de la región a lo largo del eje: límites de integración.
+  function extent(poly, dir) {
+    const s = dir === 'h' ? 0 : 1;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of poly) { if (p[s] < lo) lo = p[s]; if (p[s] > hi) hi = p[s]; }
+    return [lo, hi];
+  }
+
+  function simpson(f, lo, hi, n) {
+    if (n % 2) n++;
+    const h = (hi - lo) / n;
+    let s = f(lo) + f(hi);
+    for (let i = 1; i < n; i++) s += f(lo + i * h) * (i % 2 ? 4 : 2);
+    return s * h / 3;
+  }
+
+  function inside(t, lo, hi) {
+    const eps = (hi - lo) * 1e-9;
+    return Math.min(Math.max(t, lo + eps), hi - eps);
+  }
+
+  // V = ∫ A(t) dt con A(t) = π Σ (R² − r²), por Simpson compuesto.
+  function volume(poly, axis, n) {
+    const [lo, hi] = extent(poly, axis.dir);
+    if (!(hi > lo)) return 0;
+    return simpson(t => slice(poly, axis, inside(t, lo, hi)).area, lo, hi, n || 800);
+  }
+
+  // Suma de Riemann con n discos o arandelas tomados en el punto medio de cada subintervalo.
+  function riemann(poly, axis, n) {
+    const [lo, hi] = extent(poly, axis.dir);
+    const dt = (hi - lo) / n, slices = [];
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      const sl = slice(poly, axis, lo + (i + 0.5) * dt);
+      sl.dt = dt;
+      sum += sl.area * dt;
+      slices.push(sl);
+    }
+    return { sum, slices };
+  }
+
+  // Discos si ningún corte tiene hueco; arandelas si alguno lo tiene.
+  function method(poly, axis) {
+    const [lo, hi] = extent(poly, axis.dir);
+    const tol = 1e-7 * Math.max(1, hi - lo);
+    for (let i = 0; i < 64; i++) {
+      const sl = slice(poly, axis, lo + (i + 0.5) * (hi - lo) / 64);
+      if (sl.comps.some(c => c[0] > tol)) return 'arandelas';
+    }
+    return 'discos';
+  }
+
+  // Control independiente con el teorema de Pappus: V = 2π · d · Área (d = distancia del centroide al eje).
+  // Solo vale si la región queda a un lado del eje y las curvas no se cruzan.
+  function pappus(reg, axis) {
+    const s = axis.dir === 'h' ? 1 : 0;
+    let sign = 0;
+    for (const p of reg.poly) {
+      const d = p[s] - axis.k;
+      if (Math.abs(d) < 1e-12) continue;
+      const sg = Math.sign(d);
+      if (sign && sg !== sign) return null;
+      sign = sg;
+    }
+    const o = reg.c1[0][0] === reg.c2[0][0] && reg.c1[1][0] === reg.c2[1][0] ? 1 : 0;
+    let side = 0;
+    for (let i = 0; i < reg.c1.length; i++) {
+      const d = reg.c1[i][o] - reg.c2[i][o];
+      if (Math.abs(d) < 1e-12) continue;
+      const sg = Math.sign(d);
+      if (side && sg !== side) return null;
+      side = sg;
+    }
+    let A = 0, cx = 0, cy = 0;
+    const P = reg.poly;
+    for (let i = 0, n = P.length; i < n; i++) {
+      const p = P[i], q = P[(i + 1) % n], cr = p[0] * q[1] - q[0] * p[1];
+      A += cr; cx += (p[0] + q[0]) * cr; cy += (p[1] + q[1]) * cr;
+    }
+    A /= 2;
+    if (Math.abs(A) < 1e-14) return 0;
+    cx /= 6 * A; cy /= 6 * A;
+    const d = (axis.dir === 'h' ? cy : cx) - axis.k;
+    return 2 * Math.PI * Math.abs(d) * Math.abs(A);
+  }
+
+  function maxRadius(poly, axis) {
+    const s = axis.dir === 'h' ? 1 : 0;
+    let m = 0;
+    for (const p of poly) m = Math.max(m, Math.abs(p[s] - axis.k));
+    return m;
+  }
+
+  root.Torno = { buildRegion, sliceIntervals, toDistances, ringArea, slice, extent, simpson, volume, riemann, method, pappus, maxRadius };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const T = window.Torno;
+const $ = id => document.getElementById(id);
+const PI = Math.PI;
+
+if (typeof math === 'undefined' || typeof katex === 'undefined') {
+  $('err').hidden = false;
+  $('err').textContent = 'No se pudieron cargar las librerías. Revisa tu conexión a internet y recarga la página.';
+  throw new Error('CDN');
+}
+const M = math.create(math.all, { predictable: true });
+
+/* ---------- Formato de números (coma decimal) ---------- */
+function fmt(v, d) {
+  if (!isFinite(v)) return '—';
+  if (d === undefined) {
+    const a = Math.abs(v);
+    d = a >= 1000 ? 0 : a >= 100 ? 1 : a >= 10 ? 2 : a >= 1 ? 3 : 4;
+  }
+  return v.toLocaleString('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+const texNum = (v, d) => fmt(v, d).replace(/,/g, '{,}').replace(/\./g, '\\,');
+const short = v => fmt(v).replace(/(,\d*?)0+$/, '$1').replace(/,$/, '');
+const decimals = step => { const s = String(step); return s.includes('.') ? s.split('.')[1].length : 0; };
+const near = (p, q) => Math.abs(p - q) < 1e-9;
+
+/* ---------- Casos ---------- */
+// Perfil del tanque: Rm·(1 − p·u²) con u = (2x − a − b)/(b − a), que vale −1 en a y 1 en b.
+// ∫ de (A − B u²)² en [−1, 1] = 2A² − (4/3)AB + (2/5)B²
+const tankI = (A, B) => 2 * A * A - (4 / 3) * A * B + 0.4 * B * B;
+
+const PRESETS = [
+  {
+    id: 'tanque', name: 'Tanque de agua lluvia', unit: 'm', form: 'x',
+    f1: 'Rm*(1 - p*((2*x - a - b)/(b - a))^2)',
+    f2: 'Rm*(1 - p*((2*x - a - b)/(b - a))^2) - e',
+    a: 0, b: 3, aR: [-1, 3], bR: [0.5, 8], step: 0.05, axis: 'x', k: 0, kR: [-3, 3],
+    aLabel: 'Inicio del tanque a', bLabel: 'Final del tanque b',
+    params: [
+      { id: 'Rm', label: 'Radio central Rm', unit: 'm', min: 0.4, max: 2, step: 0.01, value: 1 },
+      { id: 'p', label: 'Abombado p (0 = cilindro)', unit: '', min: 0, max: 0.6, step: 0.01, value: 0.25 },
+      { id: 'e', label: 'Espesor de pared e', unit: 'm', min: 0.01, max: 0.2, step: 0.005, value: 0.04 }
+    ],
+    story: 'Tanque horizontal tipo tonel para guardar agua lluvia. La curva 1 es el perfil exterior y la curva 2 el interior (exterior menos el espesor). Girando sobre el eje x, las arandelas dan el material de la pared y los discos del perfil interior dan la capacidad.',
+    extrasAxis: 'x',
+    extras(S, ctx) {
+      const cap = ctx.volumeOf(ctx.C.f2, null);
+      return [
+        { l: 'Capacidad de agua', v: fmt(cap * 1000, 0) + ' L', s: 'discos: π∫ r(x)² dx = ' + fmt(cap) + ' m³' },
+        { l: 'Material de la pared', v: fmt(ctx.V) + ' m³', s: 'arandelas: π∫ (R² − r²) dx' },
+        { l: 'Agua por m³ de pared', v: fmt(cap * 1000 / ctx.V, 0) + ' L', s: 'más alto = diseño más eficiente' }
+      ];
+    },
+    exact(S) {
+      const { Rm, p, e } = S.params;
+      if (S.axis !== 'x' || Rm * (1 - p) - e < 0) return null;
+      return PI * (S.b - S.a) / 2 * (tankI(Rm, Rm * p) - tankI(Rm - e, Rm * p));
+    }
+  },
+  {
+    id: 'torre', name: 'Torre de enfriamiento', unit: 'm', form: 'y',
+    f1: 'r0*sqrt(1 + ((y - 0.75*b)/(0.6*b))^2) + e',
+    f2: 'r0*sqrt(1 + ((y - 0.75*b)/(0.6*b))^2)',
+    a: 0, b: 120, aR: [0, 60], bR: [60, 200], step: 1, axis: 'y', k: 0, kR: [-20, 20],
+    aLabel: 'Base a', bLabel: 'Altura H = b',
+    params: [
+      { id: 'r0', label: 'Radio de garganta r₀', unit: 'm', min: 15, max: 45, step: 0.5, value: 28 },
+      { id: 'e', label: 'Espesor de pared e', unit: 'm', min: 0.1, max: 1, step: 0.01, value: 0.25 },
+      { id: 'fco2', label: 'Emisión del concreto', unit: 't CO₂/m³', min: 0.2, max: 0.5, step: 0.01, value: 0.35 }
+    ],
+    story: 'Torre hiperbólica de una central térmica. El perfil interior x = r(y) es una hipérbola con la garganta (radio r₀) a 3/4 de la altura; el exterior suma el espesor e. Girando sobre el eje y, las arandelas dan el concreto de la pared y de ahí las emisiones de CO₂.',
+    extrasAxis: 'y',
+    extras(S, ctx) {
+      return [
+        { l: 'Concreto de la pared', v: fmt(ctx.V, 0) + ' m³', s: 'arandelas: π∫ (R² − r²) dy' },
+        { l: 'CO₂ estimado', v: fmt(ctx.V * S.params.fco2, 0) + ' t', s: fmt(S.params.fco2, 2) + ' t CO₂ por m³ de concreto' },
+        { l: 'Viajes de mixer', v: fmt(Math.ceil(ctx.V / 8), 0), s: 'camiones de 8 m³' }
+      ];
+    },
+    exact: null
+  },
+  {
+    id: 'libre', name: 'Ejemplo libre (mockup)', unit: 'u', form: 'x',
+    f1: '0.5*sqrt(x) + 1', f2: '0.8',
+    a: 0.5, b: 4, aR: [0, 6], bR: [0, 6], step: 0.1, axis: 'x', k: 0, kR: [-3, 3], params: [],
+    story: 'La región entre una raíz y una recta horizontal. Prueba a girarla sobre el eje y, o sobre y = k, y mira cómo cambian R y r.',
+    exact(S) {
+      if (S.axis !== 'x' || S.a < 0) return null;
+      const { a, b } = S;
+      return PI * (0.125 * (b * b - a * a) + (2 / 3) * (b ** 1.5 - a ** 1.5) + 0.36 * (b - a));
+    }
+  },
+  {
+    id: 'cono', name: 'Cono (discos)', unit: 'u', form: 'x', f1: 'x', f2: '',
+    a: 0, b: 1, aR: [-2, 2], bR: [0.1, 3], step: 0.05, axis: 'x', k: 0, kR: [-3, 3], params: [],
+    story: 'La recta y = x girada sobre el eje x forma un cono. Volumen esperado en [0, 1]: π/3.',
+    exact(S) {
+      if (S.axis === 'x') return PI * (S.b ** 3 - S.a ** 3) / 3;
+      if (S.axis === 'y' && near(S.a, 0)) return 2 * PI * S.b ** 3 / 3;
+      return null;
+    }
+  },
+  {
+    id: 'esfera', name: 'Esfera (discos)', unit: 'u', form: 'x', f1: 'sqrt(max(rho^2 - x^2, 0))', f2: '',
+    a: -2, b: 2, aR: [-3, 3], bR: [-3, 3], step: 0.05, axis: 'x', k: 0, kR: [-4, 4],
+    params: [{ id: 'rho', label: 'Radio ρ', unit: 'u', min: 0.5, max: 3, step: 0.05, value: 2 }],
+    story: 'Media circunferencia girada sobre el eje x. Volumen esperado: 4πρ³/3 (con ρ = 2, 32π/3).',
+    exact(S) {
+      const r = S.params.rho;
+      if (S.axis === 'x') {
+        const F = x => r * r * x - x ** 3 / 3, c = x => Math.max(-r, Math.min(r, x));
+        return PI * (F(c(S.b)) - F(c(S.a)));
+      }
+      if (S.axis === 'y' && near(S.a, -r) && near(S.b, r)) return 2 * PI * r ** 3 / 3;
+      return null;
+    }
+  },
+  {
+    id: 'arandela', name: '√x y x² (arandelas)', unit: 'u', form: 'x', f1: 'sqrt(x)', f2: 'x^2',
+    a: 0, b: 1, aR: [0, 1.5], bR: [0, 1.5], step: 0.05, axis: 'x', k: 0, kR: [-2, 2], params: [],
+    story: 'La región entre y = √x y y = x² en [0, 1]. Sobre el eje x y sobre el eje y da lo mismo: 3π/10.',
+    exact(S) {
+      const { a, b } = S;
+      if (S.axis === 'x' && a >= 0 && b <= 1) return PI * ((b * b - a * a) / 2 - (b ** 5 - a ** 5) / 5);
+      if (S.axis === 'y' && near(a, 0) && near(b, 1)) return 3 * PI / 10;
+      return null;
+    }
+  },
+  {
+    id: 'copa', name: 'Copa parabólica (discos en y)', unit: 'u', form: 'x', f1: 'x^2', f2: '4',
+    a: 0, b: 2, aR: [-2, 2], bR: [0.1, 2], step: 0.05, axis: 'y', k: 0, kR: [-3, 3], params: [],
+    story: 'La región entre y = x² y y = 4 girada sobre el eje y forma una copa sólida. Volumen esperado: 8π.',
+    exact(S) {
+      const { a, b } = S;
+      if (S.axis === 'y' && near(a, 0) && b <= 2) return PI * (4 * b * b - b ** 4 / 2);
+      if (S.axis === 'x' && a >= -2 && b <= 2) return PI * (16 * (b - a) - (b ** 5 - a ** 5) / 5);
+      return null;
+    }
+  },
+  {
+    id: 'parabola', name: 'Bajo y = x² (arandelas en y)', unit: 'u', form: 'x', f1: 'x^2', f2: '',
+    a: 0, b: 2, aR: [-2, 2], bR: [0.1, 3], step: 0.05, axis: 'y', k: 0, kR: [-3, 3], params: [],
+    story: 'La región bajo y = x² en [0, 2] girada sobre el eje y. Cortando en y salen arandelas con R = 2 y r = √y. Volumen esperado: 8π.',
+    exact(S) {
+      const { a, b } = S;
+      if (S.axis === 'x') return PI * (b ** 5 - a ** 5) / 5;
+      if (S.axis === 'y' && near(a, 0)) return PI * b ** 4 / 2;
+      return null;
+    }
+  },
+  {
+    id: 'toro', name: 'Toroide (eje y = k)', unit: 'u', form: 'x',
+    f1: 'sqrt(max(1 - x^2, 0))', f2: '-sqrt(max(1 - x^2, 0))',
+    a: -1, b: 1, aR: [-1.5, 1.5], bR: [-1.5, 1.5], step: 0.05, axis: 'yk', k: -3, kR: [-5, 5], params: [],
+    story: 'Un círculo de radio 1 girado sobre la recta y = k. Si |k| ≥ 1 sale un toroide de volumen 2π²|k|; con el eje x sale una esfera.',
+    exact(S) {
+      const full = S.a <= -1 + 1e-9 && S.b >= 1 - 1e-9;
+      if (!full) return null;
+      if (S.axis === 'yk' && Math.abs(S.k) >= 1) return 2 * PI * PI * Math.abs(S.k);
+      if (S.axis === 'x' || (S.axis === 'yk' && near(S.k, 0))) return 4 * PI / 3;
+      return null;
+    }
+  }
+];
+
+/* ---------- Estado ---------- */
+const S = { preset: '', form: 'x', f1: '', f2: '', a: 0, b: 1, axis: 'x', k: 0, theta: 300, pos: 500, n: 0, params: {} };
+const C = { f1: null, f2: null, err: '' };
+let P = PRESETS[0];
+
+const axisObj = () => ({ dir: S.axis === 'x' || S.axis === 'yk' ? 'h' : 'v', k: S.axis === 'x' || S.axis === 'y' ? 0 : S.k });
+const scope = () => Object.assign({ a: S.a, b: S.b, k: S.k }, S.params);
+
+function swapXY(expr) {
+  return expr.replace(/\b[xy]\b/g, m => (m === 'x' ? 'y' : 'x'));
+}
+
+function compileExprs() {
+  C.err = '';
+  const v = S.form;
+  const test = Object.assign(scope(), { [v]: (S.a + S.b) / 2 });
+  const one = (src, name) => {
+    if (!src.trim()) return null;
+    let code;
+    try {
+      code = M.compile(src);
+    } catch (e) {
+      const msg = e.message
+        .replace(/Parenthesis \) expected.*/, 'falta cerrar un paréntesis.')
+        .replace(/Unexpected end of expression.*/, 'la expresión está incompleta.')
+        .replace(/Value expected.*/, 'falta un número o una variable.')
+        .replace(/Unexpected operator.*/, 'hay un operador de más.')
+        .replace(/Syntax error.*/, 'hay un error de escritura.');
+      throw new Error(`${name}: ${msg}`);
+    }
+    try {
+      code.evaluate(test);
+    } catch (e) {
+      const m = /Undefined symbol (\w+)/.exec(e.message);
+      throw new Error(m ? `${name}: no reconozco "${m[1]}". Con esta forma la variable es ${v}.` : `${name}: no se puede evaluar (${e.message}).`);
+    }
+    return code;
+  };
+  try {
+    C.f1 = one(S.f1, 'Curva 1');
+    if (!C.f1) throw new Error('Curva 1: escribe una expresión.');
+    C.f2 = one(S.f2, 'Curva 2');
+  } catch (e) {
+    C.err = e.message.startsWith('Curva') ? e.message : 'Revisa la expresión: ' + e.message;
+  }
+}
+
+/* ---------- Controles ---------- */
+function setRange(el, min, max, step, value) {
+  el.min = min; el.max = max; el.step = step; el.value = value;
+}
+
+function buildParamSliders() {
+  const box = $('caseParams');
+  box.innerHTML = '';
+  for (const p of P.params) {
+    const wrap = document.createElement('div');
+    wrap.className = 'slider';
+    wrap.innerHTML = `<label for="par-${p.id}"><span>${p.label}</span><output id="par-${p.id}-out"></output></label><input id="par-${p.id}" type="range">`;
+    box.appendChild(wrap);
+    const el = wrap.querySelector('input');
+    setRange(el, p.min, p.max, p.step, S.params[p.id]);
+    el.addEventListener('input', () => { S.params[p.id] = +el.value; afterParamChange(); });
+  }
+  box.hidden = P.params.length === 0;
+}
+
+function syncOutputs() {
+  const u = P.unit === 'u' ? '' : ' ' + P.unit;
+  const dStep = decimals(P.step);
+  $('aOut').textContent = fmt(S.a, dStep) + u;
+  $('bOut').textContent = fmt(S.b, dStep) + u;
+  $('kOut').textContent = fmt(S.k, 1);
+  $('thetaOut').textContent = Math.round(S.theta) + '°';
+  $('nOut').textContent = S.n === 0 ? 'apagado' : S.n;
+  for (const p of P.params) {
+    const o = $(`par-${p.id}-out`);
+    if (o) o.textContent = fmt(S.params[p.id], decimals(p.step)) + (p.unit ? ' ' + p.unit : '');
+  }
+}
+
+function syncControls() {
+  $('preset').value = P.id;
+  $('story').textContent = P.story;
+  $('f1').value = S.f1;
+  $('f2').value = S.f2;
+  const pre = S.form === 'x' ? 'y =' : 'x =';
+  $('pre1').textContent = pre;
+  $('pre2').textContent = pre;
+  $('aLbl').textContent = P.aLabel || 'Límite a';
+  $('bLbl').textContent = P.bLabel || 'Límite b';
+  setRange($('a'), P.aR[0], P.aR[1], P.step, S.a);
+  setRange($('b'), P.bR[0], P.bR[1], P.step, S.b);
+  setRange($('k'), P.kR[0], P.kR[1], 0.1, S.k);
+  $('kLbl').textContent = S.axis === 'yk' ? 'Recta y = k' : 'Recta x = k';
+  $('kWrap').hidden = !(S.axis === 'yk' || S.axis === 'xk');
+  $('theta').value = S.theta;
+  $('pos').value = S.pos;
+  $('n').value = S.n;
+  document.querySelectorAll('[data-form]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.form === S.form)));
+  document.querySelectorAll('[data-axis]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.axis === S.axis)));
+  syncOutputs();
+}
+
+function loadPreset(id) {
+  P = PRESETS.find(p => p.id === id) || PRESETS[0];
+  Object.assign(S, {
+    preset: P.id, form: P.form, f1: P.f1, f2: P.f2, a: P.a, b: P.b, axis: P.axis, k: P.k, pos: 500,
+    params: Object.fromEntries(P.params.map(p => [p.id, p.value]))
+  });
+  buildParamSliders();
+  syncControls();
+  compileExprs();
+  needsFit = true;
+  schedule();
+}
+
+function afterParamChange() {
+  syncOutputs();
+  compileExprs();
+  schedule();
+}
+
+$('preset').innerHTML = PRESETS.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+$('preset').addEventListener('change', e => loadPreset(e.target.value));
+
+let exprTimer = 0;
+for (const id of ['f1', 'f2']) {
+  $(id).addEventListener('input', e => {
+    clearTimeout(exprTimer);
+    exprTimer = setTimeout(() => { S[id] = e.target.value; compileExprs(); schedule(); }, 220);
+  });
+}
+$('a').addEventListener('input', e => { S.a = +e.target.value; afterParamChange(); });
+$('b').addEventListener('input', e => { S.b = +e.target.value; afterParamChange(); });
+$('k').addEventListener('input', e => { S.k = +e.target.value; afterParamChange(); });
+$('theta').addEventListener('input', e => { stopSpin(); S.theta = +e.target.value; syncOutputs(); schedule(); });
+$('pos').addEventListener('input', e => { S.pos = +e.target.value; schedule(); });
+$('n').addEventListener('input', e => { S.n = +e.target.value; syncOutputs(); schedule(); });
+
+document.querySelectorAll('[data-form]').forEach(btn => btn.addEventListener('click', () => {
+  if (btn.dataset.form === S.form) return;
+  S.form = btn.dataset.form;
+  S.f1 = swapXY(S.f1);
+  S.f2 = swapXY(S.f2);
+  syncControls();
+  compileExprs();
+  needsFit = true;
+  schedule();
+}));
+document.querySelectorAll('[data-axis]').forEach(btn => btn.addEventListener('click', () => {
+  S.axis = btn.dataset.axis;
+  syncControls();
+  needsFit = true;
+  schedule();
+}));
+
+/* Girar: anima θ de 0° a 360° */
+let spin = null;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function stopSpin() { spin = null; $('spinBtn').textContent = 'Girar'; }
+$('spinBtn').addEventListener('click', () => {
+  if (spin) { stopSpin(); return; }
+  if (reduceMotion) { S.theta = 360; $('theta').value = 360; syncOutputs(); schedule(); return; }
+  const from = S.theta >= 359 ? 0 : S.theta;
+  spin = { from, start: performance.now(), dur: 4200 * (360 - from) / 360 };
+  $('spinBtn').textContent = 'Pausar';
+});
+
+/* Tema */
+const THEMES = ['auto', 'claro', 'oscuro'];
+let themeIdx = 0;
+$('themeBtn').addEventListener('click', () => {
+  themeIdx = (themeIdx + 1) % 3;
+  const t = THEMES[themeIdx];
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t === 'claro' ? 'light' : 'dark');
+  $('themeBtn').textContent = 'Tema: ' + t;
+  refreshColors();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshColors);
+
+let COL = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = n => cs.getPropertyValue(n).trim();
+  COL = {
+    ink: g('--ink'), muted: g('--muted'), grid: g('--grid'), axis: g('--axis'), line: g('--line'), panel: g('--panel'),
+    accent: g('--accent'), soft: g('--accent-soft'), curve2: g('--curve2'), disk: g('--disk'), stack: g('--stack'),
+    diskInk: g('--disk-ink'), solid: g('--solid'), cap: g('--cap')
+  };
+}
+function refreshColors() {
+  readColors();
+  applyMaterialColors();
+  last3 = {};
+  schedule();
+}
+
+/* ---------- Cálculo ---------- */
+let cache = {};
+function regionKey() {
+  return JSON.stringify([S.form, S.f1, S.f2, S.a, S.b, S.axis, S.k, S.params, C.err]);
+}
+
+function compute() {
+  const key = regionKey();
+  if (key === cache.key) return cache;
+  cache = { key };
+  if (C.err) { cache.error = C.err; return cache; }
+  if (!(S.b > S.a)) { cache.error = 'El límite a debe ser menor que b.'; return cache; }
+  const sc = scope();
+  const reg = T.buildRegion({ form: S.form, c1: C.f1, c2: C.f2, a: S.a, b: S.b, scope: sc, samples: 1000 });
+  if (reg.error) { cache.error = reg.error; return cache; }
+  const axis = axisObj();
+  const [lo, hi] = T.extent(reg.poly, axis.dir);
+  if (!(hi - lo > 1e-9)) { cache.error = 'La región no tiene ancho a lo largo del eje de giro.'; return cache; }
+  const reg3 = T.buildRegion({ form: S.form, c1: C.f1, c2: C.f2, a: S.a, b: S.b, scope: sc, samples: 240 });
+  const V = T.volume(reg.poly, axis, 800);
+  const unchanged = S.form === P.form && S.f1 === P.f1 && S.f2 === P.f2;
+  const exact = unchanged && P.exact ? P.exact(S) : null;
+  const ctx = {
+    V, C,
+    volumeOf(c1, c2) {
+      const r = T.buildRegion({ form: S.form, c1, c2, a: S.a, b: S.b, scope: sc, samples: 1000 });
+      return r.error ? NaN : T.volume(r.poly, axis, 800);
+    }
+  };
+  const extras = P.extras ? (S.axis === P.extrasAxis ? P.extras(S, ctx) : 'off') : null;
+  Object.assign(cache, {
+    reg, reg3, axis, lo, hi, V, exact, extras,
+    method: T.method(reg.poly, axis),
+    pappus: T.pappus(reg, axis),
+    rmax: T.maxRadius(reg.poly, axis),
+    v: axis.dir === 'h' ? 'x' : 'y',
+    direct: (S.form === 'x') === (axis.dir === 'h')
+  });
+  return cache;
+}
+
+function riemannFor(D) {
+  if (S.n === 0) return null;
+  if (D.riemKey !== S.n) { D.riemKey = S.n; D.riem = T.riemann(D.reg.poly, D.axis, S.n); }
+  return D.riem;
+}
+
+function repSlice(D) {
+  const t = D.lo + (D.hi - D.lo) * S.pos / 1000;
+  const eps = (D.hi - D.lo) * 1e-6;
+  return T.slice(D.reg.poly, D.axis, Math.min(Math.max(t, D.lo + eps), D.hi - eps));
+}
+
+/* ---------- Salida: tarjetas y fórmula ---------- */
+function card(o, cls) {
+  return `<div class="card ${cls || ''}"><span class="l">${o.l}</span><span class="v">${o.v}</span>${o.s ? `<span class="s">${o.s}</span>` : ''}</div>`;
+}
+
+function renderOutputs(D, rep, riem) {
+  const u = P.unit, v = D.v;
+  const pct = (x, ref) => fmt(Math.abs(x - ref) / Math.abs(ref) * 100, 2) + ' %';
+  const cards = [];
+  const swept = D.V * S.theta / 360;
+  cards.push(card({ l: 'Volumen del sólido', v: fmt(D.V) + ' ' + u + '³', s: `giro completo · ${D.method} · con θ = ${Math.round(S.theta)}°: ${fmt(swept)} ${u}³` }, 'main'));
+  const comps = rep.comps;
+  const rr = comps.length === 1 ? `R = ${fmt(comps[0][1])}, r = ${fmt(comps[0][0])}` : comps.length ? comps.map(c => `[${fmt(c[0])}, ${fmt(c[1])}]`).join(' ∪ ') : 'fuera de la región';
+  cards.push(card({ l: `Sección en ${v} = ${fmt(rep.t)}`, v: fmt(rep.area) + ' ' + u + '²', s: `A = π(R² − r²) · ${rr}` }));
+  const ref = D.exact != null ? D.exact : D.V;
+  if (riem) cards.push(card({ l: `Suma con n = ${S.n} ${D.method === 'discos' ? 'discos' : 'arandelas'}`, v: fmt(riem.sum) + ' ' + u + '³', s: 'error relativo ' + pct(riem.sum, ref) }));
+  else cards.push(card({ l: 'Suma de Riemann', v: 'Mueve “n discos”', s: 'para comparar la aproximación con la integral' }, 'quiet'));
+  if (D.exact != null) cards.push(card({ l: 'Valor teórico (fórmula cerrada)', v: fmt(D.exact) + ' ' + u + '³', s: 'diferencia con Simpson ' + pct(D.V, D.exact) }));
+  else if (D.pappus != null) cards.push(card({ l: 'Control con el teorema de Pappus', v: fmt(D.pappus) + ' ' + u + '³', s: 'cálculo independiente · diferencia ' + pct(D.V, D.pappus) }));
+  if (Array.isArray(D.extras)) for (const x of D.extras) cards.push(card(x, 'case'));
+  else if (D.extras === 'off') cards.push(card({ l: 'Métricas del caso', v: `Gira sobre el eje ${P.extrasAxis}`, s: 'para ver las métricas de este caso' }, 'quiet'));
+  $('results').innerHTML = cards.join('');
+
+  const tShort = x => short(x).replace(/,/g, '{,}').replace(/\./g, '\\,');
+  const lim = `\\int_{${tShort(D.lo)}}^{${tShort(D.hi)}}`;
+  const body = D.method === 'discos' ? `R(${v})^{2}` : `\\left[R(${v})^{2}-r(${v})^{2}\\right]`;
+  katex.render(`V=\\pi${lim}${body}\\,d${v}\\;\\approx\\;${texNum(D.V)}\\ \\text{${u}}^{3}`, $('tex1'), { throwOnError: false, displayMode: true });
+  const c0 = comps[0] || [0, 0];
+  const sec = comps.length > 1
+    ? `A(${texNum(rep.t)})=\\pi\\sum\\left(R_i^{2}-r_i^{2}\\right)=${texNum(rep.area)}`
+    : `A(${texNum(rep.t)})=\\pi\\left(${texNum(c0[1])}^{2}-${texNum(c0[0])}^{2}\\right)=${texNum(rep.area)}\\ \\text{${u}}^{2}`;
+  katex.render(sec, $('tex2'), { throwOnError: false, displayMode: true });
+
+  const axisName = { x: 'al eje x', y: 'al eje y', yk: `a la recta y = ${fmt(S.k, 1)}`, xk: `a la recta x = ${fmt(S.k, 1)}` }[S.axis];
+  const kTxt = D.axis.k === 0 ? '' : ` − (${fmt(D.axis.k, 1)})`;
+  const f = S.form === 'x' ? 'f(x)' : 'f(y)';
+  let txt = D.direct
+    ? `Cortes perpendiculares ${axisName} en cada ${v}. R(${v}) es la distancia del eje al borde más lejano de la región y r(${v}) al más cercano: aquí son |curva 1${kTxt}| y |curva 2${kTxt}|, la mayor es R. Si la región toca o cruza el eje, r = 0 y el corte es un disco.`
+    : `Las curvas están escritas como ${S.form === 'x' ? 'y' : 'x'} = ${f}, pero el eje es ${D.axis.dir === 'h' ? 'horizontal' : 'vertical'}, así que los cortes van en d${v}. La app corta la región a cada ${v}, invierte las curvas numéricamente y toma R(${v}) y r(${v}) como las distancias del eje a los bordes de ese corte.`;
+  txt += ' La integral se calcula con la regla de Simpson compuesta (800 subintervalos).';
+  $('rdesc').textContent = txt;
+}
+
+/* ---------- Vista 2D ---------- */
+const cv = $('c2d'), g2 = cv.getContext('2d');
+
+function niceStep(raw) {
+  const pw = 10 ** Math.floor(Math.log10(raw)), n = raw / pw;
+  return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * pw;
+}
+const tick = v => (+v.toPrecision(6) + '').replace('.', ',');
+
+function draw2D(D, rep, riem) {
+  const box = cv.parentElement, w = box.clientWidth, h = box.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g2.clearRect(0, 0, w, h);
+  if (!D) return;
+  const ax = D.axis, poly = D.reg.poly;
+  const refl = poly.map(([x, y]) => (ax.dir === 'h' ? [x, 2 * ax.k - y] : [2 * ax.k - x, y]));
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of poly.concat(refl)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  x0 = Math.min(x0, 0); x1 = Math.max(x1, 0); y0 = Math.min(y0, 0); y1 = Math.max(y1, 0);
+  const pad = 0.1 * Math.max(x1 - x0, y1 - y0, 1e-6);
+  x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  const sc = Math.min((w - 20) / (x1 - x0), (h - 20) / (y1 - y0));
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  const X = x => w / 2 + (x - mx) * sc, Y = y => h / 2 - (y - my) * sc;
+  const wx0 = mx - w / 2 / sc, wx1 = mx + w / 2 / sc, wy0 = my - h / 2 / sc, wy1 = my + h / 2 / sc;
+
+  // cuadrícula y ejes coordenados
+  const st = niceStep(Math.max(wx1 - wx0, wy1 - wy0) / 10);
+  g2.lineWidth = 1;
+  g2.strokeStyle = COL.grid;
+  g2.beginPath();
+  for (let gx = Math.ceil(wx0 / st) * st; gx <= wx1; gx += st) { g2.moveTo(X(gx), 0); g2.lineTo(X(gx), h); }
+  for (let gy = Math.ceil(wy0 / st) * st; gy <= wy1; gy += st) { g2.moveTo(0, Y(gy)); g2.lineTo(w, Y(gy)); }
+  g2.stroke();
+  g2.strokeStyle = COL.axis;
+  g2.beginPath(); g2.moveTo(0, Y(0)); g2.lineTo(w, Y(0)); g2.moveTo(X(0), 0); g2.lineTo(X(0), h); g2.stroke();
+  g2.fillStyle = COL.muted;
+  g2.font = '11px "JetBrains Mono", ui-monospace, monospace';
+  const lx = Math.min(Math.max(Y(0) + 13, 13), h - 4), ly = Math.min(Math.max(X(0) + 4, 4), w - 40);
+  g2.textAlign = 'center';
+  for (let gx = Math.ceil(wx0 / st) * st; gx <= wx1; gx += st) if (Math.abs(gx) > st / 2) g2.fillText(tick(gx), X(gx), lx);
+  g2.textAlign = 'left';
+  for (let gy = Math.ceil(wy0 / st) * st; gy <= wy1; gy += st) if (Math.abs(gy) > st / 2) g2.fillText(tick(gy), ly, Y(gy) + 4);
+  g2.fillText('x', w - 12, Math.min(Math.max(Y(0) - 6, 12), h - 16));
+  g2.fillText('y', Math.min(Math.max(X(0) + 6, 4), w - 12), 12);
+
+  const path = pts => { g2.beginPath(); pts.forEach(([x, y], i) => (i ? g2.lineTo(X(x), Y(y)) : g2.moveTo(X(x), Y(y)))); };
+
+  // reflejo de la región al otro lado del eje
+  path(refl); g2.closePath();
+  g2.globalAlpha = 0.35; g2.fillStyle = COL.soft; g2.fill(); g2.globalAlpha = 1;
+  g2.setLineDash([4, 4]); g2.strokeStyle = COL.axis; g2.stroke(); g2.setLineDash([]);
+
+  // región
+  path(poly); g2.closePath();
+  g2.fillStyle = COL.soft; g2.fill();
+
+  // rectángulos de Riemann
+  const rect = (sl, half, fill, stroke) => {
+    for (const [p, q] of sl.ints) {
+      if (ax.dir === 'h') { g2.rect(X(sl.t - half), Y(q), 2 * half * sc, (q - p) * sc); }
+      else { g2.rect(X(p), Y(sl.t + half), (q - p) * sc, 2 * half * sc); }
+    }
+    g2.fillStyle = fill; g2.fill(); g2.strokeStyle = stroke; g2.lineWidth = 1; g2.stroke();
+  };
+  if (riem) {
+    g2.globalAlpha = 0.8;
+    for (const sl of riem.slices) { g2.beginPath(); rect(sl, sl.dt / 2, COL.stack, COL.disk); }
+    g2.globalAlpha = 1;
+  }
+
+  // curvas
+  g2.lineWidth = 2.2;
+  path(D.reg.c1); g2.strokeStyle = COL.accent; g2.stroke();
+  path(D.reg.c2); g2.strokeStyle = COL.curve2; g2.stroke();
+
+  // eje de giro
+  g2.setLineDash([8, 5]); g2.lineWidth = 1.8; g2.strokeStyle = COL.ink; g2.beginPath();
+  if (ax.dir === 'h') { g2.moveTo(0, Y(ax.k)); g2.lineTo(w, Y(ax.k)); } else { g2.moveTo(X(ax.k), 0); g2.lineTo(X(ax.k), h); }
+  g2.stroke(); g2.setLineDash([]);
+  g2.fillStyle = COL.ink;
+  g2.font = '500 11px "JetBrains Mono", ui-monospace, monospace';
+  if (ax.dir === 'h') { g2.textAlign = 'left'; g2.fillText('eje de giro', 8, Y(ax.k) - 6); }
+  else { g2.save(); g2.translate(X(ax.k) - 6, h - 8); g2.rotate(-PI / 2); g2.textAlign = 'left'; g2.fillText('eje de giro', 0, 0); g2.restore(); }
+
+  // límites de integración
+  g2.font = '11px "JetBrains Mono", ui-monospace, monospace';
+  g2.fillStyle = COL.muted; g2.strokeStyle = COL.muted; g2.lineWidth = 1;
+  g2.setLineDash([2, 3]);
+  for (const [t, name] of [[D.lo, 'inicio'], [D.hi, 'fin']]) {
+    g2.beginPath();
+    if (ax.dir === 'h') { g2.moveTo(X(t), 0); g2.lineTo(X(t), h); } else { g2.moveTo(0, Y(t)); g2.lineTo(w, Y(t)); }
+    g2.stroke();
+    void name;
+  }
+  g2.setLineDash([]);
+
+  // franja representativa con R y r
+  const half = Math.max((D.hi - D.lo) / 120, 2 / sc);
+  g2.beginPath(); rect(rep, half, COL.disk, COL.diskInk);
+  if (rep.comps.length) {
+    const [r, R] = rep.comps[rep.comps.length - 1];
+    let far = null;
+    for (const [p, q] of rep.ints) for (const e of [p, q]) if (Math.abs(Math.abs(e - ax.k) - R) < 1e-9) far = e;
+    const sgn = far != null && far < ax.k ? -1 : 1;
+    const off = half + 10 / sc;
+    const guide = (dist, label, dx) => {
+      g2.beginPath();
+      if (ax.dir === 'h') { g2.moveTo(X(rep.t + dx), Y(ax.k)); g2.lineTo(X(rep.t + dx), Y(ax.k + sgn * dist)); }
+      else { g2.moveTo(X(ax.k), Y(rep.t + dx)); g2.lineTo(X(ax.k + sgn * dist), Y(rep.t + dx)); }
+      g2.strokeStyle = COL.diskInk; g2.lineWidth = 1.6; g2.stroke();
+      g2.fillStyle = COL.diskInk; g2.font = '500 12px "JetBrains Mono", ui-monospace, monospace';
+      if (ax.dir === 'h') { g2.textAlign = 'left'; g2.fillText(label, X(rep.t + dx) + 4, Y(ax.k + sgn * dist / 2) + 4); }
+      else { g2.textAlign = 'center'; g2.fillText(label, X(ax.k + sgn * dist / 2), Y(rep.t + dx) - 5); }
+    };
+    guide(R, 'R', off);
+    if (r > 1e-9) guide(r, 'r', -off);
+  }
+
+  // leyenda
+  g2.textAlign = 'left';
+  g2.font = '12px "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif';
+  const leg = [[COL.accent, 'curva 1'], [COL.curve2, 'curva 2'], [COL.disk, 'corte representativo']];
+  const lw = 150, lh = leg.length * 17 + 8, lx0 = w - lw - 8;
+  g2.globalAlpha = 0.9; g2.fillStyle = COL.panel; g2.fillRect(lx0, 8, lw, lh); g2.globalAlpha = 1;
+  leg.forEach(([c, t], i) => { g2.fillStyle = c; g2.fillRect(lx0 + 8, 16 + i * 17, 14, 4); g2.fillStyle = COL.ink; g2.fillText(t, lx0 + 28, 21 + i * 17); });
+}
+
+/* ---------- Vista 3D ---------- */
+const holder = $('c3d');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+holder.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 1e5);
+scene.add(camera);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x5a6470, 1.25));
+const key = new THREE.DirectionalLight(0xffffff, 1.7); key.position.set(2, 3, 4); camera.add(key);
+const rim = new THREE.DirectionalLight(0xffffff, 0.45); rim.position.set(-3, -1, -2); camera.add(rim);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+const mats = {
+  solid: new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.5, metalness: 0.05 }),
+  cap: new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.85 }),
+  stack: new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.6, flatShading: true }),
+  rep: new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.45, flatShading: true }),
+  c1: new THREE.LineBasicMaterial(), c2: new THREE.LineBasicMaterial(),
+  axis: new THREE.LineDashedMaterial({ dashSize: 1, gapSize: 0.5 }),
+  coord: new THREE.LineBasicMaterial({ transparent: true, opacity: 0.7 })
+};
+function applyMaterialColors() {
+  mats.solid.color.set(COL.solid); mats.cap.color.set(COL.cap); mats.stack.color.set(COL.stack); mats.rep.color.set(COL.disk);
+  mats.c1.color.set(COL.accent); mats.c2.color.set(COL.curve2); mats.axis.color.set(COL.ink); mats.coord.color.set(COL.axis);
+}
+
+// Gira el punto (x, y) un ángulo φ alrededor del eje. φ = 0 deja el punto en el plano xy.
+function rot(x, y, ph, ax) {
+  if (ax.dir === 'h') { const d = y - ax.k; return [x, ax.k + d * Math.cos(ph), -d * Math.sin(ph)]; }
+  const d = x - ax.k; return [ax.k + d * Math.cos(ph), y, -d * Math.sin(ph)];
+}
+
+// Superficie barrida por una poligonal al girar de 0 a θ.
+function sweep(pts, ax, th, steps, closed) {
+  const N = pts.length, pos = new Float32Array(N * (steps + 1) * 3), idx = [];
+  let o = 0;
+  for (let j = 0; j <= steps; j++) {
+    const ph = th * j / steps;
+    for (const [x, y] of pts) { const p = rot(x, y, ph, ax); pos[o++] = p[0]; pos[o++] = p[1]; pos[o++] = p[2]; }
+  }
+  const segs = closed ? N : N - 1;
+  for (let j = 0; j < steps; j++) for (let i = 0; i < segs; i++) {
+    const i2 = (i + 1) % N, a = j * N + i, b = j * N + i2, c = (j + 1) * N + i, d = (j + 1) * N + i2;
+    idx.push(a, b, d, a, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+function lineObj(pts, ax, ph, mat) {
+  const arr = [];
+  for (const [x, y] of pts) arr.push(...rot(x, y, ph, ax));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+  return new THREE.Line(g, mat);
+}
+
+function dedupe(pts) {
+  const out = [];
+  for (const p of pts) { const q = out[out.length - 1]; if (!q || Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9) out.push(p); }
+  if (out.length > 2 && Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) < 1e-9) out.pop();
+  return out;
+}
+
+function capGeo(contour, tris, ax, ph) {
+  const pos = [];
+  for (const [x, y] of contour) pos.push(...rot(x, y, ph, ax));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(tris.flat());
+  g.computeVertexNormals();
+  return g;
+}
+
+// Disco o arandela de grosor 2·half en la posición t, para cada tramo [r, R].
+function ringPolys(sl, half, ax) {
+  return sl.comps.map(([r, R]) => (ax.dir === 'h'
+    ? [[sl.t - half, ax.k + r], [sl.t + half, ax.k + r], [sl.t + half, ax.k + R], [sl.t - half, ax.k + R]]
+    : [[ax.k + r, sl.t - half], [ax.k + r, sl.t + half], [ax.k + R, sl.t + half], [ax.k + R, sl.t - half]]));
+}
+
+function labelSprite(text, size) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = COL.muted; g.font = '500 40px "JetBrains Mono", monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 32, 34);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+  sp.scale.set(size, size, 1);
+  return sp;
+}
+
+const layers = { surface: new THREE.Group(), caps: new THREE.Group(), lines: new THREE.Group(), stack: new THREE.Group(), rep: new THREE.Group(), frame: new THREE.Group() };
+Object.values(layers).forEach(g => scene.add(g));
+function clear(g) {
+  for (const o of [...g.children]) {
+    g.remove(o);
+    o.geometry && o.geometry.dispose();
+    if (o.material && o.material.map) { o.material.map.dispose(); o.material.dispose(); }
+  }
+}
+
+let needsFit = true, last3 = {};
+function fitCamera(D) {
+  const ax = D.axis, mid = (D.lo + D.hi) / 2;
+  const center = ax.dir === 'h' ? new THREE.Vector3(mid, ax.k, 0) : new THREE.Vector3(ax.k, mid, 0);
+  const rad = Math.hypot((D.hi - D.lo) / 2, D.rmax) * 1.12 || 1e-3;
+  const dist = rad / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  const dir = new THREE.Vector3(0.55, 0.42, 1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.near = dist / 200; camera.far = dist * 50; camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+}
+
+function build3D(D, rep, riem) {
+  const th = THREE.MathUtils.degToRad(S.theta);
+  const regionChanged = last3.key !== D.key;
+  const thetaChanged = regionChanged || last3.theta !== S.theta;
+  const nChanged = thetaChanged || last3.n !== S.n;
+  const posChanged = regionChanged || last3.pos !== S.pos;
+  last3 = { key: D.key, theta: S.theta, n: S.n, pos: S.pos };
+  const ax = D.axis, reg = D.reg3;
+  const size = Math.max(D.hi - D.lo, 2 * D.rmax, 1e-3);
+
+  if (regionChanged) {
+    clear(layers.frame);
+    const ext = size * 0.75, mid = (D.lo + D.hi) / 2;
+    const a0 = ax.dir === 'h' ? [[mid - ext, ax.k], [mid + ext, ax.k]] : [[ax.k, mid - ext], [ax.k, mid + ext]];
+    const axLine = lineObj(a0, ax, 0, mats.axis);
+    mats.axis.dashSize = size / 40; mats.axis.gapSize = size / 70;
+    axLine.computeLineDistances();
+    layers.frame.add(axLine);
+    const L = size * 0.9;
+    const cx = ax.dir === 'v' ? ax.k : mid, cy = ax.dir === 'h' ? ax.k : mid;
+    const coords = [[[cx - L, 0, 0], [cx + L, 0, 0], 'x', [cx + L * 1.06, 0, 0]], [[0, cy - L, 0], [0, cy + L, 0], 'y', [0, cy + L * 1.06, 0]], [[0, 0, -L], [0, 0, L], 'z', [0, 0, L * 1.06]]];
+    for (const [p, q, name, at] of coords) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([...p, ...q], 3));
+      layers.frame.add(new THREE.Line(g, mats.coord));
+      const sp = labelSprite(name, size * 0.06); sp.position.set(...at); layers.frame.add(sp);
+    }
+  }
+
+  if (thetaChanged) {
+    clear(layers.surface); clear(layers.caps); clear(layers.lines);
+    const full = th >= 2 * PI - 1e-6;
+    if (th > 1e-6) {
+      const steps = Math.max(2, Math.round(128 * th / (2 * PI)));
+      const c1 = reg.c1, c2 = reg.c2, nA = c1.length - 1;
+      const pieces = [c1, [c1[nA], c2[nA]], c2.slice().reverse(), [c2[0], c1[0]]];
+      for (const pc of pieces) layers.surface.add(new THREE.Mesh(sweep(pc, ax, th, steps, false), mats.solid));
+    }
+    const contour = dedupe(reg.poly);
+    const tris = THREE.ShapeUtils.triangulateShape(contour.map(([x, y]) => new THREE.Vector2(x, y)), []);
+    if (!full) {
+      layers.caps.add(new THREE.Mesh(capGeo(contour, tris, ax, 0), mats.cap));
+      if (th > 1e-6) layers.caps.add(new THREE.Mesh(capGeo(contour, tris, ax, th), mats.cap));
+    }
+    for (const ph of full ? [0] : th > 1e-6 ? [0, th] : [0]) {
+      layers.lines.add(lineObj(reg.c1, ax, ph, mats.c1));
+      layers.lines.add(lineObj(reg.c2, ax, ph, mats.c2));
+    }
+  }
+
+  if (nChanged) {
+    clear(layers.stack);
+    const ghost = !!riem;
+    mats.solid.transparent = ghost; mats.solid.opacity = ghost ? 0.14 : 1; mats.solid.depthWrite = !ghost; mats.solid.needsUpdate = true;
+    mats.cap.transparent = ghost; mats.cap.opacity = ghost ? 0.2 : 1; mats.cap.depthWrite = !ghost; mats.cap.needsUpdate = true;
+    if (riem && th > 1e-6) {
+      const steps = Math.max(2, Math.round(64 * th / (2 * PI)));
+      const geos = [];
+      for (const sl of riem.slices) for (const poly of ringPolys(sl, sl.dt * 0.46, ax)) geos.push(sweep(poly, ax, th, steps, true));
+      if (geos.length) {
+        const merged = mergeGeometries(geos);
+        geos.forEach(g => g.dispose());
+        layers.stack.add(new THREE.Mesh(merged, mats.stack));
+      }
+    }
+  }
+
+  if (posChanged) {
+    clear(layers.rep);
+    const half = Math.max(size / 140, (D.hi - D.lo) / 160);
+    for (const poly of ringPolys(rep, half, ax)) layers.rep.add(new THREE.Mesh(sweep(poly, ax, 2 * PI, 96, true), mats.rep));
+  }
+
+  if (needsFit) { fitCamera(D); needsFit = false; }
+}
+$('fitBtn').addEventListener('click', () => { if (cache.reg) fitCamera(cache); });
+
+function resize3D() {
+  const w = holder.clientWidth, h = holder.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(() => { resize3D(); schedule(); }).observe(holder);
+new ResizeObserver(() => schedule()).observe(cv.parentElement);
+
+/* ---------- Ciclo ---------- */
+let pending = false;
+function schedule() { pending = true; }
+
+function update() {
+  const D = compute();
+  const bad = !!D.error;
+  $('err').hidden = !bad || !!C.err;
+  $('exprErr').hidden = !C.err;
+  $('exprErr').textContent = C.err;
+  $('ov2').hidden = $('ov3').hidden = !bad;
+  if (bad) {
+    $('err').textContent = D.error;
+    $('ov2').textContent = $('ov3').textContent = 'Corrige los datos del panel para ver la gráfica.';
+    $('results').innerHTML = '';
+    $('tex1').textContent = ''; $('tex2').textContent = ''; $('rdesc').textContent = '';
+    draw2D(null);
+    clear(layers.surface); clear(layers.caps); clear(layers.lines); clear(layers.stack); clear(layers.rep);
+    last3 = {};
+    return;
+  }
+  const v = D.v, rep = repSlice(D), riem = riemannFor(D);
+  $('posLbl').textContent = `Disco en ${v} =`;
+  $('posOut').textContent = fmt(rep.t);
+  renderOutputs(D, rep, riem);
+  draw2D(D, rep, riem);
+  build3D(D, rep, riem);
+}
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (spin) {
+    const k = Math.min(1, (now - spin.start) / Math.max(spin.dur, 1));
+    S.theta = Math.round(spin.from + (360 - spin.from) * k);
+    $('theta').value = S.theta;
+    syncOutputs();
+    pending = true;
+    if (k >= 1) stopSpin();
+  }
+  if (pending) { pending = false; update(); }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+/* Estado inicial desde el enlace: #caso=torre&theta=240&n=12&eje=y */
+function fromHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  loadPreset(h.get('caso') || 'tanque');
+  if (h.has('eje') && ['x', 'y', 'yk', 'xk'].includes(h.get('eje'))) S.axis = h.get('eje');
+  if (h.has('k')) S.k = +h.get('k');
+  if (h.has('theta')) S.theta = Math.max(0, Math.min(360, +h.get('theta')));
+  if (h.has('n')) S.n = Math.max(0, Math.min(100, Math.round(+h.get('n'))));
+  if (h.has('pos')) S.pos = Math.max(0, Math.min(1000, +h.get('pos')));
+  if (h.get('tema') === 'oscuro') { document.documentElement.setAttribute('data-theme', 'dark'); themeIdx = 2; $('themeBtn').textContent = 'Tema: oscuro'; }
+  if (h.get('tema') === 'claro') { document.documentElement.setAttribute('data-theme', 'light'); themeIdx = 1; $('themeBtn').textContent = 'Tema: claro'; }
+  readColors();
+  applyMaterialColors();
+  syncControls();
+  compileExprs();
+  needsFit = true;
+}
+
+readColors();
+applyMaterialColors();
+fromHash();
+resize3D();
+requestAnimationFrame(loop);
+window.__torno = { S, get data() { return cache; }, PRESETS, update: () => { pending = true; } };
+</script>
+</body>
+</html>
