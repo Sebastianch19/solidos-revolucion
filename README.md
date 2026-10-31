@@ -2,6 +2,8 @@
 
 Simulador de sólidos de revolución por los métodos de discos y arandelas, para el proyecto de Cálculo Integral. Gira una región alrededor del eje x, del eje y o de las rectas y = k y x = k, y calcula el volumen en tiempo real.
 
+**App en línea:** https://sebastianch19.github.io/solidos-revolucion/
+
 ## Archivos
 
 | Archivo | Qué es |
