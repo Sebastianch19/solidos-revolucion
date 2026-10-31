@@ -79,6 +79,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0}
 .view{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
 .view figcaption{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line);font-size:.84rem;font-weight:500}
 .view figcaption span{color:var(--muted);font-weight:400;font-size:.78rem}
+.cap-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .box{position:relative;height:clamp(300px,48vh,540px)}
 #c2d{display:block;width:100%;height:100%}
 #c3d{position:absolute;inset:0}
@@ -172,7 +173,7 @@ footer{text-align:center;color:var(--muted);font-size:.78rem;padding-block:0 28p
         <div class="box"><canvas id="c2d" aria-label="Gráfica 2D de la región y el eje de giro" role="img"></canvas><div class="overlay" id="ov2" hidden></div></div>
       </figure>
       <figure class="view">
-        <figcaption>Sólido de revolución <span>arrastra para rotar · rueda o pellizco para acercar <button class="btn" id="fitBtn" type="button">Recentrar</button></span></figcaption>
+        <figcaption>Sólido de revolución <span class="cap-actions">arrastra para rotar · rueda o pellizco para acercar <button class="btn primary" id="spinBtn3" type="button">Girar</button> <button class="btn" id="fitBtn" type="button">Recentrar</button></span></figcaption>
         <div class="box"><div id="c3d"></div><div class="overlay" id="ov3" hidden></div></div>
       </figure>
     </div>
@@ -697,14 +698,18 @@ document.querySelectorAll('[data-axis]').forEach(btn => btn.addEventListener('cl
 /* Girar: anima θ de 0° a 360° */
 let spin = null;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-function stopSpin() { spin = null; $('spinBtn').textContent = 'Girar'; }
-$('spinBtn').addEventListener('click', () => {
+// Hay dos botones de girar: uno en el panel y otro sobre la vista 3D
+const spinBtns = [$('spinBtn'), $('spinBtn3')];
+const spinLabel = t => spinBtns.forEach(b => { b.textContent = t; });
+function stopSpin() { spin = null; spinLabel('Girar'); }
+function toggleSpin() {
   if (spin) { stopSpin(); return; }
   if (reduceMotion) { S.theta = 360; $('theta').value = 360; syncOutputs(); schedule(); return; }
   const from = S.theta >= 359 ? 0 : S.theta;
   spin = { from, start: performance.now(), dur: 4200 * (360 - from) / 360 };
-  $('spinBtn').textContent = 'Pausar';
-});
+  spinLabel('Pausar');
+}
+spinBtns.forEach(b => b.addEventListener('click', toggleSpin));
 
 /* Tema */
 const THEMES = ['auto', 'claro', 'oscuro'];
